@@ -200,6 +200,7 @@ int main(int argc, char* argv[]) {
     for (size_t i = 0; i < vertex_array.size(); ++i) 
         vertex_array[i].color = GetRandColor(i % iters);
 
+
     // Initialize random parameters
     ResetPlot();
     RandParams(params);
@@ -269,9 +270,11 @@ int main(int argc, char* argv[]) {
 		// Draw the data
         if (t > 0)
 		create_png(vertex_array, t);
+        cout << "time: " << t << endl;
 
 
     } // while end, t end
+    // cout << "bug4" << endl;
 
 	stop = clock();
 	cout << double(stop - start) / CLOCKS_PER_SEC << endl;

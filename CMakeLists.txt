@@ -30,11 +30,11 @@ if (NOT "${CMAKE_C_COMPILER_ID}" STREQUAL "GNU")
 endif ()
 
 
-# # search for pkg-config
-# include (FindPkgConfig)
-# if (NOT PKG_CONFIG_FOUND)
-#     message (FATAL_ERROR "pkg-config not found")
-# endif ()
+# search for pkg-config
+include (FindPkgConfig)
+if (NOT PKG_CONFIG_FOUND)
+    message (FATAL_ERROR "pkg-config not found")
+endif ()
 
 # check for libpng
 pkg_check_modules (LIBPNG libpng16 REQUIRED)
