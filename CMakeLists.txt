@@ -45,7 +45,10 @@ else ()
     link_directories (${LIBPNG_LIBRARY_DIRS})
     link_libraries (${LIBPNG_LIBRARIES})
 endif ()
+
 add_executable (chaos main.cpp ${LIBPNG_LINK_FLAGS})
+
+add_executable (openmp openmp.cpp ${LIBPNG_LINK_FLAGS})
 
 # add_executable(chaos main.cpp)
 # target_link_libraries(chaos libpng)

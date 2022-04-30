@@ -9,6 +9,8 @@
 #include <cstring>
 #include <ctime>
 #include <png.h>
+#include <omp.h>
+
 
 using namespace std;
 
@@ -21,7 +23,7 @@ static const double delta_per_step = 1e-5;
 static const double delta_minimum = 1e-7;
 static const double t_start = -3.0;
 static const double t_end = 3.0;
-// static const int fad_speed = 10;
+static const int fad_speed = 10;
 static std::mt19937 rand_gen;
 static const float dot_sizes[3] = { 1.0f, 3.0f, 10.0f };
 static const int num_params = 18;
@@ -47,10 +49,12 @@ struct Vector2f{
     double y;
 };
 
+
 struct Vertex{
     Vector2f position;
     Color  color;
 };
+
 
 static Color GetRandColor(int i) {
   i += 1;
@@ -163,12 +167,80 @@ static void RandParams(double* params) {
     //     }
     // }
 	params[ 0] = 1; params[ 1] = 0; params[ 2] = 0;
-	params[ 3] = 0; params[ 4] =-1; params[ 5] = 1;
+	params[ 3] = 0; params[ 4] =-3; params[ 5] = 5;
 	params[ 6] =-1; params[ 7] = 0; params[ 8] = 0;
 
-	params[ 9] = 0; params[10] =-1; params[11] =-1;
-	params[12] =-1; params[13] =-1; params[14] =-1;
-	params[15] = 0; params[16] =-1; params[17] = 0;
+	params[ 9] = 0; params[10] = -1; params[11] = -1;
+	params[12] = 1; params[13] = 9; params[14] = -1;
+	params[15] = 0; params[16] = -1; params[17] = 0;
+}
+
+void run_equation(double& t, double rolling_delta, double* params, vector<Vector2f>& history, vector<Vertex>& vertex_array){
+    //Smooth out the stepping speed.
+    // double t = *pt; // get the time 
+    const double delta = delta_per_step; // 1e-5
+    rolling_delta = rolling_delta*0.99 + delta*0.01; // ??
+
+    for (int step = 0; step < steps_per_frame; ++step) // steps_per_frame = 500 多少步畫一張圖 
+    {
+        bool isOffScreen = true;
+        double x = t;
+        double y = t;
+        cout << endl << "step: " << step << " t: " << t << " t_step: " << t_step <<" rd: " << rolling_delta << endl;
+
+        for (int iter = 0; iter < iters; ++iter) // 800 產生幾個點
+        {
+            const double xx = x * x; const double yy = y * y; const double tt = t * t;
+            const double xy = x * y; const double xt = x * t; const double yt = y * t;
+
+            const double nx = xx * params[ 0] + yy * params[ 1] + tt * params[ 2] + 
+                        xy * params[ 3] + xt * params[ 4] + yt * params[ 5] + 
+                        x  * params[ 6] + y  * params[ 7] + t  * params[ 8] ;
+            
+            const double ny = xx * params[ 9] + yy * params[10] + tt * params[11] + 
+                        xy * params[12] + xt * params[13] + yt * params[14] + 
+                        x  * params[15] + y  * params[16] + t  * params[17] ;
+
+            x = nx;
+            y = ny;
+
+            // cout <<"N: " << iter << " x: " << x << " y: " << y << endl;
+
+            Vector2f screenPt = ToScreen(x,y);
+            // if (iter < 100) // iter太少->點太少，直接無視，渲染的時候顯得更好看，不會有很少的點出現->拔掉
+            // {
+            //     screenPt.x = FLT_MAX;
+            //     screenPt.y = FLT_MAX;
+            // }
+
+            vertex_array[step*iters + iter].position = screenPt;
+
+            // Check if dynamic delta should be adjusted
+            if (screenPt.x > 0.0f && screenPt.y > 0.0f && screenPt.x < window_w && screenPt.y < window_h)
+            {
+                const float dx = history[iter].x - float(x);
+                const float dy = history[iter].y - float(y);
+                const double dist = double(500.0f * sqrt(dx*dx + dy*dy));
+                rolling_delta = min(rolling_delta, max(delta / (dist + 1e-5), delta_minimum));
+                isOffScreen = false;
+                cout << "----not off----: " << t << ", "<< t_step << ", " << rolling_delta << endl;
+            }
+
+            history[iter].x = float(x);
+            history[iter].y = float(y);
+
+        } //iteration end
+
+        if(isOffScreen){
+            cout << "++++is off++++: " << t <<", "<< t_step << ", " << rolling_delta << endl;
+        }
+        // t += (isOffScreen) ? t_step : rolling_delta;
+        t += rolling_delta;
+
+        // *pt = t; // assign updated t back to orginal addr
+        // t += t_step;
+    } // step end
+    return;
 }
 
 int main(int argc, char* argv[]) {
@@ -193,6 +265,7 @@ int main(int argc, char* argv[]) {
     for (size_t i = 0; i < vertex_array.size(); ++i) 
         vertex_array[i].color = GetRandColor(i % iters);
 
+
     // Initialize random parameters
     ResetPlot();
     RandParams(params);
@@ -207,66 +280,14 @@ int main(int argc, char* argv[]) {
             RandParams(params);
         }
 
-        //Smooth out the stepping speed.
-        const double delta = delta_per_step; // 1e-5
-        rolling_delta = rolling_delta*0.99 + delta*0.01; // ??
-
-        for (int step = 0; step < steps_per_frame; ++step) //steps = 500
-        {
-			bool isOffScreen = true;
-            double x = t;
-            double y = t;
-            for (int iter = 0; iter < iters; ++iter) // 800
-            {
-                const double xx = x * x; const double yy = y * y; const double tt = t * t;
-                const double xy = x * y; const double xt = x * t; const double yt = y * t;
-
-                const double nx = xx * params[ 0] + yy * params[ 1] + tt * params[ 2] + 
-                            xy * params[ 3] + xt * params[ 4] + yt * params[ 5] + 
-                            x  * params[ 6] + y  * params[ 7] + t  * params[ 8] ;
-                
-                const double ny = xx * params[ 9] + yy * params[10] + tt * params[11] + 
-                            xy * params[12] + xt * params[13] + yt * params[14] + 
-                            x  * params[15] + y  * params[16] + t  * params[17] ;
-
-                x = nx;
-                y = ny;
-
-				Vector2f screenPt = ToScreen(x,y);
-                if (iter < 100)
-                {
-                    screenPt.x = FLT_MAX;
-                    screenPt.y = FLT_MAX;
-                }
-
-                vertex_array[step*iters + iter].position = screenPt;
-
-                // Check if dynamic delta should be adjusted
-                if (screenPt.x > 0.0f && screenPt.y > 0.0f && screenPt.x < window_w && screenPt.y < window_h)
-				{
-					const float dx = history[iter].x - float(x);
-					const float dy = history[iter].y - float(y);
-					const double dist = double(500.0f * sqrt(dx*dx + dy*dy));
-					rolling_delta = min(rolling_delta, max(delta / (dist + 1e-5), delta_minimum));
-					isOffScreen = false;
-				}
-
-				history[iter].x = float(x);
-				history[iter].y = float(y);
-            } //iteration end
-
-			t += (isOffScreen) ? t_step : rolling_delta;
-			// t += t_step;
-        } // step end
+        run_equation(t, rolling_delta, params, history, vertex_array);
 
 		// Draw the data
         // if (t > 0)
 		create_png(vertex_array, t);
         cout << "time: " << t << endl;
 
-
-    } 
-    // while end, t end
+    } // while end, t end
     // cout << "bug4" << endl;
 
 	stop = clock();
