@@ -176,12 +176,17 @@ static void RandParams(double* params) {
 }
 
 void run_equation(double& t, double rolling_delta, double* params, vector<Vector2f>& history, vector<Vertex>& vertex_array){
+    //Smooth out the stepping speed.
+    // double t = *pt; // get the time 
     const double delta = delta_per_step; // 1e-5
+    rolling_delta = rolling_delta*0.99 + delta*0.01; // ??
 
     for (int step = 0; step < steps_per_frame; ++step) // steps_per_frame = 500 多少步畫一張圖 
     {
+        bool isOffScreen = true;
         double x = t;
         double y = t;
+        cout << endl << "step: " << step << " t: " << t << " t_step: " << t_step <<" rd: " << rolling_delta << endl;
 
         for (int iter = 0; iter < iters; ++iter) // 800 產生幾個點
         {
@@ -199,15 +204,41 @@ void run_equation(double& t, double rolling_delta, double* params, vector<Vector
             x = nx;
             y = ny;
 
+            // cout <<"N: " << iter << " x: " << x << " y: " << y << endl;
+
             Vector2f screenPt = ToScreen(x,y);
+            // if (iter < 100) // iter太少->點太少，直接無視，渲染的時候顯得更好看，不會有很少的點出現->拔掉
+            // {
+            //     screenPt.x = FLT_MAX;
+            //     screenPt.y = FLT_MAX;
+            // }
 
             vertex_array[step*iters + iter].position = screenPt;
+
+            // Check if dynamic delta should be adjusted
+            if (screenPt.x > 0.0f && screenPt.y > 0.0f && screenPt.x < window_w && screenPt.y < window_h)
+            {
+                const float dx = history[iter].x - float(x);
+                const float dy = history[iter].y - float(y);
+                const double dist = double(500.0f * sqrt(dx*dx + dy*dy));
+                rolling_delta = min(rolling_delta, max(delta / (dist + 1e-5), delta_minimum));
+                isOffScreen = false;
+                cout << "----not off----: " << t << ", "<< t_step << ", " << rolling_delta << endl;
+            }
 
             history[iter].x = float(x);
             history[iter].y = float(y);
 
         } //iteration end
-        t += delta;
+
+        if(isOffScreen){
+            cout << "++++is off++++: " << t <<", "<< t_step << ", " << rolling_delta << endl;
+        }
+        // t += (isOffScreen) ? t_step : rolling_delta;
+        t += rolling_delta;
+
+        // *pt = t; // assign updated t back to orginal addr
+        // t += t_step;
     } // step end
     return;
 }
@@ -263,4 +294,3 @@ int main(int argc, char* argv[]) {
 	cout << double(stop - start) / CLOCKS_PER_SEC << endl;
     return 0;
 }
-
