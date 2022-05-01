@@ -46,9 +46,12 @@ else ()
     link_libraries (${LIBPNG_LIBRARIES})
 endif ()
 
-add_executable (chaos main.cpp ${LIBPNG_LINK_FLAGS})
+add_executable (original original.cpp ${LIBPNG_LINK_FLAGS})
+
+add_executable (serial serial.cpp ${LIBPNG_LINK_FLAGS})
 
 add_executable (openmp openmp.cpp ${LIBPNG_LINK_FLAGS})
+target_link_libraries(openmp PRIVATE OpenMP::OpenMP_CXX)
 
 # add_executable(chaos main.cpp)
 # target_link_libraries(chaos libpng)
