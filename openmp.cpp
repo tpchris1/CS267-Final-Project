@@ -7,6 +7,7 @@
 #include <cstdlib>
 #include <string>
 #include <cstring>
+#include <string>
 #include <ctime>
 #include <chrono>
 #include <png.h>
@@ -206,8 +207,8 @@ void run_equation(int step, int frame, double* params, vector<Vertex>& vertex_ar
     // double t = ((double)intt) / 100000;
     // int step = intt % 500; 
     double t = ((double)(intt_start + frame * steps_per_frame + step) * delta_per_step); // -300000 + 0*500 + 10 * 0.00001->-2.9999
-    // cout << "frame: " << frame << " step: " << step << " t: " << t << endl;   
-
+    // string pto = "frame: " + to_string(frame) + " step: " + to_string(step) + " t: " + to_string(t) + "\n";   
+    // cout << pto;
     double x = t;
     double y = t;
 
@@ -238,27 +239,31 @@ void run_equation(int step, int frame, double* params, vector<Vertex>& vertex_ar
 void run_one_frame(int frame, double* params, bool isRender){
     // Setup the vertex array and params
     vector<Vertex> vertex_array(point_num * steps_per_frame); // 800 * 500
-    
+
     // Generate color for each point in vertex array
     // TODO: need to parallelize this 
     gen_color(vertex_array);
     
-    // #pragma omp for 
     // run equation for steps_per_frame times
-    for (int step = 0; step < steps_per_frame; step++){
-        run_equation(step, frame, params, vertex_array);
+    #pragma omp parallel default(shared)
+    {
+        #pragma omp for 
+        for (int step=0; step<steps_per_frame; step++){
+            // cout << to_string(step) + "\n";
+            run_equation(step, frame, params, vertex_array);
+        }
     }
 
     // barrier 
     // TODO: do we need to put barrier here? 
     // #pragma omp barrier
-        vertex_array.clear();
-        vertex_array.shrink_to_fit();
+    // vertex_array.clear();
+    // vertex_array.shrink_to_fit();
     // render 
     // #pragma omp master
     // {
     //     // cout << "this is master\n" ;
-    //     // create_png(vertex_array, frame);
+    create_png(vertex_array, frame);
     // }
     return;
 }
@@ -278,7 +283,6 @@ int main(int argc, char* argv[]) {
     vector<Vector2f> history(point_num);        //point_num = 800
     double params[num_params];              // 18 
 
-
     // int intt_start = (int)(t_start/delta_per_step); // -3.0 / 1e-5 = -300000
     // int intt_end = (int)(t_end/delta_per_step); // 3.0 / 1e-5 = 300000
     // int frame_num = (intt_end - intt_start) / steps_per_frame;
@@ -295,7 +299,8 @@ int main(int argc, char* argv[]) {
         // for(int intt=intt_start; intt<intt_end; intt++){}
         #pragma omp for
         for(int frame=0; frame<frame_num; frame++){
-            cout << "frame: " << frame << endl;
+            string ptn = "frame: " + to_string(frame) + "\n";
+            cout << ptn;
             run_one_frame(frame, params, isRender);
         }
         // int step = 0;

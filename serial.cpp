@@ -253,7 +253,7 @@ int main(int argc, char* argv[]) {
 
         if(step == steps_per_frame)
         {
-            // create_png(vertex_array, t);
+            create_png(vertex_array, t);
             frame += 1;
             step = 0;
             // cout << "time: " << t << " frame: " << frame << " step:" << step << endl;
