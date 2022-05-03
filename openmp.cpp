@@ -8,6 +8,7 @@
 #include <string>
 #include <cstring>
 #include <ctime>
+#include <chrono>
 #include <png.h>
 #include <omp.h>
 
@@ -17,7 +18,7 @@ using namespace std;
 #define t_step 1e-3
 
 //Global constants
-static const int iters = 800;
+static const int point_num = 800;
 static const int steps_per_frame = 500;
 static const double delta_per_step = 1e-5;
 static const double delta_minimum = 1e-7;
@@ -28,6 +29,11 @@ static std::mt19937 rand_gen;
 static const float dot_sizes[3] = { 1.0f, 3.0f, 10.0f };
 static const int num_params = 18;
 
+static const int intt_start = (int)(t_start/delta_per_step); // -3.0 / 1e-5 = -300000
+static const int intt_end = (int)(t_end/delta_per_step); // 3.0 / 1e-5 = 300000
+static const int frame_num = (intt_end - intt_start) / steps_per_frame;
+static const bool isRender = false;
+
 //Global variables
 static int window_w = 1600;
 static int window_h = 900;
@@ -35,8 +41,6 @@ static int window_bits = 24;
 static float plot_scale = 0.25f;
 static float plot_x = 0.0f;
 static float plot_y = 0.0f;
-
-int frame_num = 0;
 
 struct Color{
     int r;
@@ -111,7 +115,7 @@ void write_png(const char* filename, const int width, const int height, const in
     fclose(fp);
 }
 
-void create_png(vector<Vertex>& vertex_array, double t) {
+void create_png(vector<Vertex>& vertex_array, int frame) {
 
 	// allocate memory for image 
 	size_t image_size = window_w * window_h * sizeof(int);
@@ -139,12 +143,12 @@ void create_png(vector<Vertex>& vertex_array, double t) {
     }
 
     // start I/O
-	double file_name_double = (t + 3) * 1e+5; // t start with -3
+	// double file_name_double = (t + 3) * 1e+5; // t start with -3
 	// cout << "filename: " << file_name_double << " ";
 
 	char filename[40];
 	// sprintf(filename , "./pic/%06d.png" , int(file_name_double));
-	sprintf(filename, "./seq_pic/%06d.png", frame_num++);
+	sprintf(filename, "./seq_pic/%06d.png", frame);
 
 	// cout << filename << endl;
 	write_png(filename, window_w, window_h, imageR, imageG, imageB);
@@ -191,11 +195,23 @@ static void RandParams(double* params) {
 	// params[15] = -1; params[16] = 1; params[17] = 0;
 }
 
-void run_equation(double& t, int step, double* params, vector<Vector2f>& history, vector<Vertex>& vertex_array){
+void gen_color(vector<Vertex>& vertex_array){
+    for (size_t i = 0; i < vertex_array.size(); ++i){
+        vertex_array[i].color = GetRandColor(i % point_num);
+    }
+    return; 
+}
+
+void run_equation(int step, int frame, double* params, vector<Vertex>& vertex_array){
+    // double t = ((double)intt) / 100000;
+    // int step = intt % 500; 
+    double t = ((double)(intt_start + frame * steps_per_frame + step) * delta_per_step); // -300000 + 0*500 + 10 * 0.00001->-2.9999
+    // cout << "frame: " << frame << " step: " << step << " t: " << t << endl;   
+
     double x = t;
     double y = t;
 
-    for (int iter = 0; iter < iters; ++iter) // 800 產生幾個點
+    for (int point = 0; point < point_num; ++point) // 800 產生幾個點
     {
         const double xx = x * x; const double yy = y * y; const double tt = t * t;
         const double xy = x * y; const double xt = x * t; const double yt = y * t;
@@ -213,33 +229,62 @@ void run_equation(double& t, int step, double* params, vector<Vector2f>& history
 
         Vector2f screenPt = ToScreen(x,y);
 
-        vertex_array[step*iters + iter].position = screenPt;
-
-        history[iter].x = float(x);
-        history[iter].y = float(y);
+        vertex_array[step*point_num + point].position = screenPt;
 
     } //iteration end
     return;
 }
 
-int main(int argc, char* argv[]) {
-	clock_t start, stop;
-	cout << "start computing........." << endl;
-	start = clock();
+void run_one_frame(int frame, double* params, bool isRender){
+    // Setup the vertex array and params
+    vector<Vertex> vertex_array(point_num * steps_per_frame); // 800 * 500
+    
+    // Generate color for each point in vertex array
+    // TODO: need to parallelize this 
+    gen_color(vertex_array);
+    
+    // #pragma omp for 
+    // run equation for steps_per_frame times
+    for (int step = 0; step < steps_per_frame; step++){
+        run_equation(step, frame, params, vertex_array);
+    }
 
+    // barrier 
+    // TODO: do we need to put barrier here? 
+    // #pragma omp barrier
+        vertex_array.clear();
+        vertex_array.shrink_to_fit();
+    // render 
+    // #pragma omp master
+    // {
+    //     // cout << "this is master\n" ;
+    //     // create_png(vertex_array, frame);
+    // }
+    return;
+}
+
+int main(int argc, char* argv[]) {
+
+    
+	// clock_t start, stop;
+	cout << "start computing........." << endl;
+	// start = clock();
+    auto start_time = std::chrono::steady_clock::now();
 
     //Set random seed
-    rand_gen.seed((unsigned int)time(0));
+    rand_gen.seed(42);
 
     //Simulation variables
-    vector<Vector2f> history(iters);        //iters = 800
+    vector<Vector2f> history(point_num);        //point_num = 800
     double params[num_params];              // 18 
 
-    // Setup the vertex array
-    vector<Vertex> vertex_array(iters * steps_per_frame); // 800 * 500
 
-    for (size_t i = 0; i < vertex_array.size(); ++i) 
-        vertex_array[i].color = GetRandColor(i % iters);
+    // int intt_start = (int)(t_start/delta_per_step); // -3.0 / 1e-5 = -300000
+    // int intt_end = (int)(t_end/delta_per_step); // 3.0 / 1e-5 = 300000
+    // int frame_num = (intt_end - intt_start) / steps_per_frame;
+    // bool isRender = false;
+    
+    cout << "intt_start: " << intt_start << " intt_end: " << intt_end << " frame_num: " << frame_num << endl;
 
     // Initialize random parameters
     ResetPlot();
@@ -247,35 +292,45 @@ int main(int argc, char* argv[]) {
 
     #pragma omp parallel default(shared)
     {
-        int step = 0;
-        int frame = 0;
+        // for(int intt=intt_start; intt<intt_end; intt++){}
         #pragma omp for
-        // for(double t=t_start; t<=t_end; t+=delta_per_step){ // invalid iteration when make
-        for(int intt=-300000; intt<300000; intt++){
-            double t = intt / 100000; 
-            // cout << "time: " << t << endl;
+        for(int frame=0; frame<frame_num; frame++){
+            cout << "frame: " << frame << endl;
+            run_one_frame(frame, params, isRender);
+        }
+        // int step = 0;
+        // int frame = 0;
+        // // for(double t=t_start; t<=t_end; t+=delta_per_step){ // invalid iteration when make
+        // for(int intt=-300000; intt<300000; intt++){
+        //     cout << "time: " << intt << endl;
 
-            run_equation(t, step, params, history, vertex_array);
+        //     run_equation(intt, params, history, vertex_array);
             
-            #pragma omp atomic
-            step++;
+            // #pragma omp atomic
+            // step++;
 
-            if(step == steps_per_frame)
-            {
-                // create_png(vertex_array, t);
-                #pragma omp atomic
-                frame += 1;
-                step = 0;
-                // cout << "time: " << t << " frame: " << frame << " step:" << step << endl;
-            }
-        } 
+            // if(step == steps_per_frame)
+            // {
+            //     // create_png(vertex_array, t);
+            //     #pragma omp atomic
+            //     frame += 1;
+            //     step = 0;
+            //     // cout << "time: " << t << " frame: " << frame << " step:" << step << endl;
+            // }
+        // } 
     }
 
     ResetPlot();
     RandParams(params);
 
-	stop = clock();
-	cout << double(stop - start) / CLOCKS_PER_SEC << endl;
+    auto end_time = std::chrono::steady_clock::now();
+
+    std::chrono::duration<double> diff = end_time - start_time;
+    double seconds = diff.count();
+
+    // Finalize
+    std::cout << "Simulation Time = " << seconds << " seconds. \n";
+
     return 0;
 }
 
