@@ -255,16 +255,13 @@ void run_one_frame(int frame, double* params, bool isRender){
     }
 
     // barrier 
-    // TODO: do we need to put barrier here? 
     // #pragma omp barrier
+    // TODO: do we need to put barrier here? 
+
+    // render 
+    create_png(vertex_array, frame);
     // vertex_array.clear();
     // vertex_array.shrink_to_fit();
-    // render 
-    // #pragma omp master
-    // {
-    //     // cout << "this is master\n" ;
-    create_png(vertex_array, frame);
-    // }
     return;
 }
 
@@ -303,26 +300,6 @@ int main(int argc, char* argv[]) {
             cout << ptn;
             run_one_frame(frame, params, isRender);
         }
-        // int step = 0;
-        // int frame = 0;
-        // // for(double t=t_start; t<=t_end; t+=delta_per_step){ // invalid iteration when make
-        // for(int intt=-300000; intt<300000; intt++){
-        //     cout << "time: " << intt << endl;
-
-        //     run_equation(intt, params, history, vertex_array);
-            
-            // #pragma omp atomic
-            // step++;
-
-            // if(step == steps_per_frame)
-            // {
-            //     // create_png(vertex_array, t);
-            //     #pragma omp atomic
-            //     frame += 1;
-            //     step = 0;
-            //     // cout << "time: " << t << " frame: " << frame << " step:" << step << endl;
-            // }
-        // } 
     }
 
     ResetPlot();
