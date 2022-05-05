@@ -5,7 +5,6 @@
 #include <fstream>
 #include <cfloat>
 #include <cstdlib>
-#include <iostream>
 #include <string>
 #include <ctime>
 #include <queue>
@@ -110,10 +109,11 @@ static Color GetRandColor(int i) {
   return Color{r, g, b};
 }
 
-static void ResetPlot() {
+static int ResetPlot() {
   plot_scale = 0.25f;
   plot_x = 0.0f;
   plot_y = 0.0f;
+  return 0;
 }
 
 __device__ void ToScreen(Vector2f& screenPt) {
@@ -407,7 +407,6 @@ int main(int argc, char* argv[]) {
     ResetPlot();
     RandParams(params);
 
-    
     pthread_t computing_threads[num_computing_threads];
     pthread_t io_threads[num_io_threads];
 
@@ -418,7 +417,6 @@ int main(int argc, char* argv[]) {
     // create i/o threads
     for (int i = 0; i < num_io_threads; ++i)
         assert (0 == pthread_create(&io_threads[i], NULL, thread_io_target, (void*) &io_point[i]));
-
 
     // join computing threads
     for (int i = 0; i < num_computing_threads; ++i)
