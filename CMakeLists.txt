@@ -31,6 +31,6 @@ else ()
     link_libraries (${LIBPNG_LIBRARIES})
 endif ()
 
-add_executable(cuda original-cuda.cu)
+add_executable(cuda cuda.cu)
 target_compile_features(cuda PRIVATE cxx_std_11)
 set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -arch=sm_60")

@@ -13,21 +13,15 @@
 #include <png.h>
 #include <omp.h>
 
-
 using namespace std;
-
-#define t_step 1e-3
 
 //Global constants
 static const int point_num = 800;
 static const int steps_per_frame = 500;
 static const double delta_per_step = 1e-5;
-static const double delta_minimum = 1e-7;
 static const double t_start = -3.0;
 static const double t_end = 3.0;
-static const int fad_speed = 10;
 static std::mt19937 rand_gen;
-static const float dot_sizes[3] = { 1.0f, 3.0f, 10.0f };
 static const int num_params = 18;
 
 static const int intt_start = (int)(t_start/delta_per_step); // -3.0 / 1e-5 = -300000
@@ -266,8 +260,6 @@ void run_one_frame(int frame, double* params, bool isRender){
 }
 
 int main(int argc, char* argv[]) {
-
-    
 	// clock_t start, stop;
 	cout << "start computing........." << endl;
 	// start = clock();
