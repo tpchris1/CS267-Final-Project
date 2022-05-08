@@ -9,6 +9,7 @@
 #include <cstring>
 #include <ctime>
 #include <chrono> 
+#include <stdio.h>
 #include <cuda.h>
 #include <cuda_runtime.h>
 
@@ -22,6 +23,7 @@ using namespace std;
 #define NUM_THREADS 256
 int blks;
 
+// CUDA ErrorHandler
 #define gpuErrchk(ans) { gpuAssert((ans), __FILE__, __LINE__); }
 inline void gpuAssert(cudaError_t code, const char *file, int line, bool abort=true)
 {
@@ -32,17 +34,6 @@ inline void gpuAssert(cudaError_t code, const char *file, int line, bool abort=t
    }
 }
 
-// // CUDA ErrorHandler
-// inline void e(cudaError_t err, const char* file, int line){
-//     if (err != cudaSuccess) 
-//     {
-//         printf("Error in %s at line %d:\n\t%s\n", file, line, cudaGetErrorString(err));
-//         exit(EXIT_FAILURE);
-//     }
-// }
-
-// #define HANDLE_ERROR(err) ( e(err, __FILE__, __LINE__) )
-// -------------------------
 
 
 
@@ -52,10 +43,10 @@ struct Color{
     int b;
 };
 
-struct Vector2f{
+typedef struct Vector2f{
     double x;
     double y;
-};
+}Vector2f;
 
 struct Vertex{
     Vector2f position;
@@ -63,7 +54,7 @@ struct Vertex{
 };
 
 //Global constants
-static const int point_num = 25000;
+static const int point_num = 800;
 static const int steps_per_frame = 500;
 static const double delta_per_step = 1e-5;
 static const double t_start = -3.0;
@@ -71,8 +62,10 @@ static const double t_end = 3.0;
 static std::mt19937 rand_gen;
 static const int num_params = 18;
 
-static const int intt_start = (int)(t_start/delta_per_step); // -3.0 / 1e-5 = -300000
-static const int intt_end = (int)(t_end/delta_per_step); // 3.0 / 1e-5 = 300000
+// static const int intt_start = (int)(t_start/delta_per_step); // -3.0 / 1e-5 = -300000
+// static const int intt_end = (int)(t_end/delta_per_step); // 3.0 / 1e-5 = 300000
+static const int intt_start = -300000; // -3.0 / 1e-5 = -300000
+static const int intt_end = 300000; // 3.0 / 1e-5 = 300000
 static const int frame_num = (intt_end - intt_start) / steps_per_frame;
 static const bool isRender = false;
 
@@ -114,18 +107,6 @@ char* find_string_option(int argc, char** argv, const char* option, char* defaul
     return default_value;
 }
 
-static int get_size(Vertex* vertex_array){
-    return sizeof(vertex_array)/sizeof(vertex_array[0]);
-}
-
-static Color GetRandColor(int i) {
-    i += 1;
-    int r = std::min(255, 50 + (i * 11909) % 256);
-    int g = std::min(255, 50 + (i * 52973) % 256);
-    int b = std::min(255, 50 + (i * 44111) % 256);
-    return Color{r, g, b};
-}
-
 static int ResetPlot() {
     plot_scale = 0.25f;
     plot_x = 0.0f;
@@ -155,76 +136,51 @@ static void RandParams(double* params) {
     
 }
 
-__device__ void ToScreen(Vector2f& screenPt) {
-  const float s = 0.25f * (double)window_w / 2.0;
-  const float nx = (double)window_w * 0.5f + (float(screenPt.x) - 0.0) * s;
-  const float ny = (double)window_h * 0.5f + (float(screenPt.y) - 0.0) * s;
-  screenPt.x = nx;
-  screenPt.y = ny;
+__device__ static Color GetRandColor(int i) {
+    i += 1;
+    int r = min(255, 50 + (i * 11909) % 256);
+    int g = min(255, 50 + (i * 52973) % 256);
+    int b = min(255, 50 + (i * 44111) % 256);
+    return Color{r, g, b};
 }
 
-
-// TODO: 參考一下compute each step裡面的stride的部分 是不是有可以加速的部分？
-__global__ void compute_each_step(Vector2f* cuda_vector_array, double T) {
-    // index
-    int id = threadIdx.x + blockIdx.x * blockDim.x;
-    int stride = blockDim.x * gridDim.x;
-
-
-    for (int step = id ; step < 1000; step = step + stride) //steps = 2000
-    {
-        double t = T + step * 1e-7;
-        // bool isOffScreen = true;
-        double x = t;
-        double y = t;
-        for (int iter = 0; iter < 800; ++iter) // 800
-        {
-            const double xx = x * x; const double yy = y * y; const double tt = t * t;
-            const double xy = x * y; const double xt = x * t; const double yt = y * t;
-
-            const double nx =   xx * 1 + yy * 0 + tt * 0 + 
-                                xy * 0 + xt *-1 + yt * 1 + 
-                                x  *-1 + y  * 0 + t  * 0 ;
-            
-            const double ny =   xx * 0 + yy *-1 + tt *-1 + 
-                                xy *-1 + xt *-1 + yt *-1 + 
-                                x  * 0 + y  *-1 + t  * 0 ;
-            x = nx;
-            y = ny;
-
-            Vector2f screenPt;
-            screenPt.x = x;
-            screenPt.y = y;
-
-            ToScreen(screenPt);
-            if (iter < 100)
-            {
-                screenPt.x = FLT_MAX;
-                screenPt.y = FLT_MAX;
-            }
-
-            cuda_vector_array[step*800 + iter].x = screenPt.x;
-            cuda_vector_array[step*800 + iter].y = screenPt.y;
-
-        } //iteration end
-    } // step end
-}
-
-void gen_color(Vertex* vertex_array){
-    for (int i = 0; i < get_size(vertex_array); ++i){
-        vertex_array[i].color = GetRandColor(i % point_num);
-    }
+__global__ void gen_color(Vertex* vertex_array, int num_vertex){
+    int tid = threadIdx.x + blockIdx.x * blockDim.x;
+    if (tid >= num_vertex)
+        return;
+    vertex_array[tid].color = GetRandColor(tid % point_num);
     return; 
 }
 
-__global__ void run_equation(Vertex* vertex_array, double* params){
+// __device__ void ToScreen(Vector2f& screenPt) {
+__device__ Vector2f ToScreen(double x, double y) {
+    const double s = 0.25f * (double)window_w / 2.0;
+    const double nx = (double)window_w * 0.5f + (x - 0.0) * s;
+    const double ny = (double)window_h * 0.5f + (y - 0.0) * s;
+    
+    Vector2f screenPt;
+    screenPt.x = nx;
+    screenPt.y = ny;
+    return screenPt;
+}
+
+__global__ void run_equation(Vertex* vertex_array){
     int tid = threadIdx.x + blockIdx.x * blockDim.x;
-    // 0*500 + (-300000) = 0 , 1*500+-300000 = -299995 
-    int intt = (tid * steps_per_frame) + intt_start; 
-    if (intt >= intt_end)
+    if (tid >= frame_num)
         return;
 
+    int intt = (tid * steps_per_frame) + intt_start; // 0*500 + (-300000) = 0 , 1*500+-300000 = -299995  
     double t = ((double)intt) * delta_per_step; // t = 2.99999 
+    // printf("%d %d\n",tid,tid*point_num);
+
+    double params[18];
+    params[ 0] = 1; params[ 1] = 0; params[ 2] = 0;
+	params[ 3] = 0; params[ 4] =-1; params[ 5] = 1;
+	params[ 6] =-1; params[ 7] = 0; params[ 8] = 0;
+
+	params[ 9] = 0; params[10] =-1; params[11] =-1;
+	params[12] =-1; params[13] =-1; params[14] =-1;
+	params[15] = 0; params[16] =-1; params[17] = 0;
     
     // int step = intt % 500; 
     // double t = ((double)(intt_start + frame * steps_per_frame + step) * delta_per_step); // -300000 + 0*500 + 10 * 0.00001->-2.9999
@@ -245,17 +201,16 @@ __global__ void run_equation(Vertex* vertex_array, double* params){
         const double ny = xx * params[ 9] + yy * params[10] + tt * params[11] + 
                     xy * params[12] + xt * params[13] + yt * params[14] + 
                     x  * params[15] + y  * params[16] + t  * params[17] ;
-
         Vector2f screenPt;
-        screenPt.x = x;
-        screenPt.y = y;
-        ToScreen(screenPt);
+        screenPt = ToScreen(x,y);
+        
+        // printf("%d %d %d\n",tid, point, idx);
+        vertex_array[tid*point_num + point].position = screenPt;  // 0*800 + point, 1*800+point...
+        // __syncthreads();
         
         x = nx;
         y = ny;
-
-        vertex_array[tid*point_num + point].position = screenPt;  // 0*800 + point, 1*800+point...
-
+          //synchronize the local threads writing to the local memory cache
     } //iteration end
     return;
 }
@@ -284,48 +239,41 @@ int main(int argc, char* argv[]) {
 
     // Vars
     int num_vertex = frame_num * point_num;
-    cout << "vertex num: " <<  num_vertex << endl;
+    cout << "vertex num: " << num_vertex << endl;
     // Calculate CUDA Vars
     blks = (num_vertex + NUM_THREADS - 1) / NUM_THREADS; // blks calculation way?
     
     // CPU vertex arr
     Vertex* vertex_array;
     vertex_array = new Vertex[num_vertex]; // 1200 * 800
-    gen_color(vertex_array); // TODO: Should parallelize this?
 
     // GPU vertex arr
     Vertex* gpu_vertex_array;
     cudaMalloc((void**)&gpu_vertex_array, num_vertex * sizeof(Vertex));
-    cudaMemcpy(gpu_vertex_array, vertex_array, num_vertex * sizeof(Vertex), cudaMemcpyHostToDevice);
     gpuErrchk( cudaPeekAtLastError() );
     
-    // Gen Equation Params
-    double params[num_params];              // 18 
-    double gpu_params[num_params];              // 18 
-    RandParams(params);
-    cudaMalloc((void**)&gpu_params, num_params * sizeof(double));
-    cudaMemcpy(gpu_params, params, num_params * sizeof(double), cudaMemcpyHostToDevice);
+    // Gen Equation Params -> move to run equation
+    // double params[num_params];              // 18 
+    // double gpu_params[num_params];              // 18 
+    // RandParams(params);
+    // cudaMalloc((void**)&gpu_params, num_params * sizeof(double));
+    // cudaMemcpy(gpu_params, params, num_params * sizeof(double), cudaMemcpyHostToDevice);
 
-    run_equation<<<blks, NUM_THREADS>>>(gpu_vertex_array, gpu_params);
-    // gpuErrchk( cudaPeekAtLastError() );
-    // gpuErrchk( cudaDeviceSynchronize() );
+    gen_color<<<blks, NUM_THREADS>>>(gpu_vertex_array, num_vertex); 
+    gpuErrchk( cudaDeviceSynchronize() );
+    run_equation<<<blks, NUM_THREADS>>>(gpu_vertex_array);
+    gpuErrchk( cudaDeviceSynchronize() );
 
     // cathc error from kernel synchronize
     // HANDLE_ERROR( cudaPeekAtLastError());
     // catch error from kernel asynchronize
     // HANDLE_ERROR( cudaDeviceSynchronize());
+    // cudaDeviceSynchronize();
+    cudaMemcpy(vertex_array, gpu_vertex_array, num_vertex * sizeof(Vertex), cudaMemcpyDeviceToHost);
 
-    cudaDeviceSynchronize();
-
-    //     // Save state if necessary
-    //     if (fsave.good() && (step % savefreq) == 0) {
-    //         cudaMemcpy(parts, parts_gpu, num_parts * sizeof(particle_t), cudaMemcpyDeviceToHost);
-    //         save(fsave, parts, num_parts, size);
-    //     }
-    // }
+    // Finiah Actual Execution 
     // ------------------------
     
-    cudaDeviceSynchronize();
     auto end_time = std::chrono::steady_clock::now();
 
     std::chrono::duration<double> diff = end_time - start_time;
