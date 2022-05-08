@@ -63,7 +63,7 @@ struct Vertex{
 };
 
 //Global constants
-static const int point_num = 1500;
+static const int point_num = 25000;
 static const int steps_per_frame = 500;
 static const double delta_per_step = 1e-5;
 static const double t_start = -3.0;
@@ -219,7 +219,8 @@ void gen_color(Vertex* vertex_array){
 
 __global__ void run_equation(Vertex* vertex_array, double* params){
     int tid = threadIdx.x + blockIdx.x * blockDim.x;
-    int intt = tid - intt_start;
+    // 0*500 + (-300000) = 0 , 1*500+-300000 = -299995 
+    int intt = (tid * steps_per_frame) + intt_start; 
     if (intt >= intt_end)
         return;
 
@@ -275,10 +276,6 @@ int main(int argc, char* argv[]) {
 	cout << "start computing........." << endl;
     auto start_time = std::chrono::steady_clock::now();
 
-    // int intt_start = (int)(t_start/delta_per_step); // -3.0 / 1e-5 = -300000
-    // int intt_end = (int)(t_end/delta_per_step); // 3.0 / 1e-5 = 300000
-    // int frame_num = (intt_end - intt_start) / steps_per_frame;
-    // bool isRender = false;
     cout << "intt_start: " << intt_start << " intt_end: " << intt_end << " frame_num: " << frame_num << endl;
     cout << "point_num: " << point_num << endl; 
 
@@ -286,20 +283,21 @@ int main(int argc, char* argv[]) {
     // Actual Execution 
 
     // Vars
-    int num_vertex = frame_num * steps_per_frame * point_num;
-
+    int num_vertex = frame_num * point_num;
+    cout << "vertex num: " <<  num_vertex << endl;
     // Calculate CUDA Vars
     blks = (num_vertex + NUM_THREADS - 1) / NUM_THREADS; // blks calculation way?
     
     // CPU vertex arr
     Vertex* vertex_array;
-    vertex_array = new Vertex[num_vertex]; // 1200 * 500 * 800
+    vertex_array = new Vertex[num_vertex]; // 1200 * 800
     gen_color(vertex_array); // TODO: Should parallelize this?
 
     // GPU vertex arr
     Vertex* gpu_vertex_array;
     cudaMalloc((void**)&gpu_vertex_array, num_vertex * sizeof(Vertex));
     cudaMemcpy(gpu_vertex_array, vertex_array, num_vertex * sizeof(Vertex), cudaMemcpyHostToDevice);
+    gpuErrchk( cudaPeekAtLastError() );
     
     // Gen Equation Params
     double params[num_params];              // 18 
