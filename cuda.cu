@@ -22,16 +22,26 @@ using namespace std;
 #define NUM_THREADS 256
 int blks;
 
-// CUDA ErrorHandler
-inline void e(cudaError_t err, const char* file, int line){
-    if (err != cudaSuccess) 
-    {
-        printf("Error in %s at line %d:\n\t%s\n", file, line, cudaGetErrorString(err));
-        exit(EXIT_FAILURE);
-    }
+#define gpuErrchk(ans) { gpuAssert((ans), __FILE__, __LINE__); }
+inline void gpuAssert(cudaError_t code, const char *file, int line, bool abort=true)
+{
+   if (code != cudaSuccess) 
+   {
+      fprintf(stderr,"GPUassert: %s %s %d\n", cudaGetErrorString(code), file, line);
+      if (abort) exit(code);
+   }
 }
 
-#define HANDLE_ERROR(err) ( e(err, __FILE__, __LINE__) )
+// // CUDA ErrorHandler
+// inline void e(cudaError_t err, const char* file, int line){
+//     if (err != cudaSuccess) 
+//     {
+//         printf("Error in %s at line %d:\n\t%s\n", file, line, cudaGetErrorString(err));
+//         exit(EXIT_FAILURE);
+//     }
+// }
+
+// #define HANDLE_ERROR(err) ( e(err, __FILE__, __LINE__) )
 // -------------------------
 
 
@@ -53,7 +63,7 @@ struct Vertex{
 };
 
 //Global constants
-static const int point_num = 600;
+static const int point_num = 1500;
 static const int steps_per_frame = 500;
 static const double delta_per_step = 1e-5;
 static const double t_start = -3.0;
@@ -299,6 +309,8 @@ int main(int argc, char* argv[]) {
     cudaMemcpy(gpu_params, params, num_params * sizeof(double), cudaMemcpyHostToDevice);
 
     run_equation<<<blks, NUM_THREADS>>>(gpu_vertex_array, gpu_params);
+    // gpuErrchk( cudaPeekAtLastError() );
+    // gpuErrchk( cudaDeviceSynchronize() );
 
     // cathc error from kernel synchronize
     // HANDLE_ERROR( cudaPeekAtLastError());
