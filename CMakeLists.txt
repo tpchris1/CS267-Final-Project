@@ -1,10 +1,22 @@
-# CUDA Version
-cmake_minimum_required(VERSION 3.11)
+cmake_minimum_required(VERSION 3.14)
 project(final-project-cuda)
 
-enable_language(CUDA)
 set(CMAKE_CXX_STANDARD 11)
 set(CMAKE_CXX_STANDARD_REQUIRED YES)
+
+find_package(OpenMP REQUIRED)
+
+# Group number
+set(GROUP_NAME "None" CACHE STRING "Your group name as it appears on bCourses (no spaces)")
+
+# Packaging system
+if (NOT ${GROUP_NAME} STREQUAL None)
+    set(CPACK_GENERATOR TGZ)
+    set(CPACK_PACKAGE_FILE_NAME "cs267${GROUP_NAME}_hw2_1")
+    install(FILES serial.cpp openmp.cpp DESTINATION .)
+    install(FILES ${CPACK_PACKAGE_FILE_NAME}.pdf DESTINATION .)
+    include(CPack)
+endif ()
 
 # We require the GNU compiler for this assignment.
 if (NOT "${CMAKE_C_COMPILER_ID}" STREQUAL "GNU")
@@ -14,6 +26,7 @@ if (NOT "${CMAKE_C_COMPILER_ID}" STREQUAL "GNU")
             "Must use GNU Compiler for submission. Make sure you ran:\n"
             "module swap ${Prg-${CMAKE_C_COMPILER_ID}} PrgEnv-gnu")
 endif ()
+
 
 # search for pkg-config
 include (FindPkgConfig)
@@ -31,6 +44,21 @@ else ()
     link_libraries (${LIBPNG_LIBRARIES})
 endif ()
 
-add_executable(cuda cuda.cu)
-target_compile_features(cuda PRIVATE cxx_std_11)
-set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -arch=sm_60")
+add_executable (original serial-original.cpp ${LIBPNG_LINK_FLAGS})
+
+add_executable (serial serial.cpp ${LIBPNG_LINK_FLAGS})
+
+add_executable (openmp openmp.cpp ${LIBPNG_LINK_FLAGS})
+target_link_libraries(openmp PRIVATE OpenMP::OpenMP_CXX)
+
+# add_executable(chaos main.cpp)
+# target_link_libraries(chaos libpng)
+
+# add_executable(serial main.cpp serial.cpp common.h)
+
+# add_executable(openmp main.cpp openmp.cpp common.h)
+# target_link_libraries(openmp PRIVATE OpenMP::OpenMP_CXX)
+
+# # Copy the job scripts
+# configure_file(job-serial job-serial COPYONLY)
+# configure_file(job-openmp job-openmp COPYONLY)
