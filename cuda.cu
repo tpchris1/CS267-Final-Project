@@ -54,7 +54,7 @@ struct Vertex{
 };
 
 //Global constants
-static const int point_num = 800;
+static const int point_num = 1000;
 static const int steps_per_frame = 500;
 static const double delta_per_step = 1e-5;
 static const double t_start = -3.0;
@@ -166,11 +166,11 @@ __device__ Vector2f ToScreen(double x, double y) {
 
 __global__ void run_equation(Vertex* vertex_array){
     int tid = threadIdx.x + blockIdx.x * blockDim.x;
-    if (tid >= frame_num)
+    if (tid + intt_start >= intt_end)
         return;
 
-    int intt = (tid * steps_per_frame) + intt_start; // 0*500 + (-300000) = 0 , 1*500+-300000 = -299995  
-    double t = ((double)intt) * delta_per_step; // t = 2.99999 
+    int intt = tid + intt_start; // 0 + (-300000) = -300000 , 1+-300000 = -299999  
+    double t = ((double)intt) * delta_per_step; // t = 3.0, 2.99999 
     // printf("%d %d\n",tid,tid*point_num);
 
     double params[18];
@@ -238,7 +238,7 @@ int main(int argc, char* argv[]) {
     // Actual Execution 
 
     // Vars
-    int num_vertex = frame_num * point_num;
+    int num_vertex = frame_num * steps_per_frame * point_num;
     cout << "vertex num: " << num_vertex << endl;
     // Calculate CUDA Vars
     blks = (num_vertex + NUM_THREADS - 1) / NUM_THREADS; // blks calculation way?
