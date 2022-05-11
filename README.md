@@ -1,6 +1,7 @@
 # CS267-Final-Project
 ## How to run
 ### OpenMP
+- Switch to OpenMP branch
 - Need to load `zlib`, `libpng` and `ffmpeg` into Cori
 - `module load zlib`
 - `module load png`
@@ -16,3 +17,12 @@
 - `cd seq_pic` 
 - `ffmpeg -r 60 -f image2 -s 1600x900 -i %06d.png -vcodec libx264 -crf 25  -pix_fmt yuv420p test.mp4` to output video
 
+### CUDA
+- Switch to OpenMP branch
+- `module load cuda`
+
+### PyMGRIT
+- module load python
+- module load openmpi
+- pip install pymgrit
+- mpiexec -n 1 python3 pymgrit-demo-2.py 
